@@ -9,10 +9,8 @@ import android.widget.TextView;
 
 import java.math.BigInteger;
 
-public class MainActivity extends AppCompatActivity implements FactoringTask.OnResultListener, FactoringTask.OnProgressListener {
+public class MainActivity extends AppCompatActivity  {
     FactoringTask backgroundTask = null;
-    BigInteger semiPrime;  // If this is non-null, that means that there is a suspended AsyncTask that we need to restart
-    BigInteger lastTested;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -20,19 +18,14 @@ public class MainActivity extends AppCompatActivity implements FactoringTask.OnR
         setContentView(R.layout.activity_main);
 
         findViewById(R.id.btnStart).setOnClickListener(this::factor);
+        findViewById(R.id.btnUpdate).setOnClickListener(this::update);
 
         if (savedInstanceState != null && savedInstanceState.getBoolean("isFactoring")) {
-            lastTested = new BigInteger(savedInstanceState.getString("lastTested"));
-            semiPrime = new BigInteger(savedInstanceState.getString("semiprime"));
-        }
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-        if (semiPrime != null) {
-            backgroundTask = new FactoringTask(semiPrime, lastTested, this, this);
+            BigInteger lastTested = new BigInteger(savedInstanceState.getString("lastTested"));
+            BigInteger semiPrime = new BigInteger(savedInstanceState.getString("semiprime"));
+            backgroundTask = new FactoringTask(semiPrime, lastTested);
             backgroundTask.execute();
+            findViewById(R.id.btnUpdate).setEnabled(true);
         }
     }
 
@@ -50,40 +43,40 @@ public class MainActivity extends AppCompatActivity implements FactoringTask.OnR
 
         if (backgroundTask != null) {
             savedState.putBoolean("isFactoring", true);
-            savedState.putString("semiprime", semiPrime.toString());
-            savedState.putString("lastTested", lastTested.toString());
+            savedState.putString("semiprime", backgroundTask.getSemiprime().toString());
+            savedState.putString("lastTested", backgroundTask.getLastTested().toString());
         }
         else {
             savedState.putBoolean("isFactoring", false);
         }
     }
 
-    // Called when you click on button
     private void factor(View v) {
         if (backgroundTask != null) {
-            // Cancel a task if one is already running
             backgroundTask.cancel();
         }
-        semiPrime = new BigInteger(((EditText) findViewById(R.id.etNumber)).getText().toString());
 
-        // Instantiate the asynctasks:
-        backgroundTask = new FactoringTask(semiPrime, null, this, this); // Note we use the Activity as callback object
-        backgroundTask.execute(); // No argument when we are starting a new factoring task
-                                  // Pick a random factor to start testing
+        BigInteger semiPrime = new BigInteger(((EditText) findViewById(R.id.etNumber)).getText().toString());
+
+        backgroundTask = new FactoringTask(semiPrime, null);
+        backgroundTask.execute();
+        findViewById(R.id.btnUpdate).setEnabled(true);
     }
 
-    // Callback method 1
-    @Override
-    public void reportProgress (BigInteger lastTested){
-        this.lastTested = lastTested;
-        ((TextView) findViewById(R.id.txtProgress)).setText("Last Tested:\n" + lastTested.toString());
-    }
-
-    // Callback method 2
-    @Override
-    public void foundFactor (BigInteger factor){
-        ((TextView) findViewById(R.id.txtProgress)).setText("FACTORED!!!\n" + factor.toString());
-        backgroundTask = null;
-        semiPrime = null;
+    private void update(View v) {
+        if (backgroundTask == null) {
+            v.setEnabled(false);
+        }
+        else {
+            BigInteger factor = backgroundTask.getFactor();
+            if (factor != null) {
+                ((TextView) findViewById(R.id.txtProgress)).setText("FACTORED!!!\n" + factor.toString());
+                backgroundTask = null;
+                v.setEnabled(false);
+            }
+            else {
+                ((TextView) findViewById(R.id.txtProgress)).setText("No factor found yet.\nLast factor tested:\n" + backgroundTask.getLastTested());
+            }
+        }
     }
 }
